@@ -54,7 +54,11 @@ func run() int {
 
 	for idx, msgBlock := range msgs {
 		for k, msg := range msgBlock {
-			if ! msg.HasRollResults() {
+			hasRoles, err := msg.HasRollResults()
+			if err != nil {
+				log.Fatalf( "Failed to decode internal roll info from message content: %s:\n%s", msg.Content, err.Error() )
+			}
+			if ! hasRoles {
 				continue
 			}
 			who := msg.Who

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"time"
+	"encoding/json"
 )
 
 type DiceResult struct {
@@ -58,7 +59,7 @@ type InlineRoll struct {
 }
 
 type Msg struct {
-	Priority      float64     `json:".priority,omitempty"`
+	R20DateStamp  float64     `json:".priority,omitempty"`
 	// the avatar signature field is false if not defined rather than empty or missing or null because ????
 	Avatar        interface{} `json:"avatar,omitempty"`
 	Content       string      `json:"content,omitempty"`
@@ -83,23 +84,50 @@ func (self *Msg) BriefDesc() string {
 }
 
 func (self *Msg) TimeStamp() time.Time {
-	// it seems like priority is a java powered timestamp in milliseconds,
+	// the ".priority" (named R20DateStamp) here seems to be a java powered timestamp in milliseconds,
 	// complete with a decimal point because ????
 	// so convert with Unix foramt
-	i, f := math.Modf(self.Priority/1000)
+	i, f := math.Modf(self.R20DateStamp/1000) // gives us seconds and fractional seconds
 	nanoSecs, _ := math.Modf(f*1000000000) // convert to nanoseconds
 	return time.Unix(int64(i),int64(nanoSecs))
 }
 
-func (self *Msg) HasRollResults() bool {
-	return len(self.InlineRolls) > 0
+func (self *Msg) HasRollResults() (bool, error) {
+	err := self.UnpackRolls()
+	if err != nil {
+		return true, err
+	}
+	return len(self.InlineRolls) > 0, nil
+}
+
+
+// mesages with "rollresult" type actually have their roll result embedded inside their
+// content information. roll20 in next level of sigh here.
+func (self *Msg) UnpackRolls() error {
+	if len(self.InlineRolls) > 0 || (self.Type != "rollresult" && self.Type != "gmrollresult") {
+		return nil
+	}
+	ir := InlineRoll{
+		Expression: self.OriginalRoll,
+		Signature: false,
+	}
+	err := json.Unmarshal([]byte(self.Content), &ir.Results)
+	if err != nil {
+		return err
+	}
+	self.InlineRolls = append(self.InlineRolls, ir)
+	return nil
 }
 
 // will pass each actual dice roll made to the interating function
 // function should return true to continue or false to abort
-func (self *Msg) IterateRawDiceRolls(f func(r Roll) bool) bool {
-	if ! self.HasRollResults() {
-		return false
+//
+// This function will return true if all rolls were iterated,
+// or false if it was aborted by the calling funciton.
+func (self *Msg) IterateRawDiceRolls(f func(r Roll) bool) (bool, error) {
+	hasRoles, err := self.HasRollResults() // will unpack 'rollresult' type if required
+	if err != nil || ! hasRoles {
+		return false, err
 	}
 	for _, ir := range self.InlineRolls {
 		if len(ir.Results.Rolls) == 0 {
@@ -107,13 +135,15 @@ func (self *Msg) IterateRawDiceRolls(f func(r Roll) bool) bool {
 		}
 		for _, roll := range ir.Results.Rolls {
 			if ! f(roll) {
-				return false
+				return false, nil
 			}
 		}
 	}
-	return true
+	return true, nil
 }
 
+// Some helpers to deal with r20's stupidity of <string> || FALSE
+// who programs this garbage?
 func (self *Msg) GetAvatar() string {
 	if s, ok := self.Avatar.(string) ; ok {
 		return s

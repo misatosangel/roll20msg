@@ -97,15 +97,18 @@ func (self *StatBlock) FormatResultsDiscord() string {
 	if self.HasMode {
 		mode = fmt.Sprintf("%d", self.Mode)
 	}
+
 	return fmt.Sprintf(
           "**Count:** %d\n"+
           "**By time:** %s\n"+
           "**By roll:** %s\n"+
           "**Median:** %.2f\n"+
           "**Mode:** %s\n"+
-          "**Mean:** %.2f\n",
+          "**Mean:** %.2f\n"+
+          "**Min:** %d (%d)\n"+
+          "**Max:** %d (%d)\n",
           self.Count, JoinIntSlice(self.OrderedByTime), JoinIntSlice(self.OrderedByRoll),
-          self.Median, mode, self.Mean);
+          self.Median, mode, self.Mean, self.Min, self.ByRoll[self.Min], self.Max, self.ByRoll[self.Max]);
 }
 
 // why golang makes this so hard I have no idea

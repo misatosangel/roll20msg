@@ -87,14 +87,18 @@ func TestJsonMsgStreamParse(t *testing.T) {
 	hasNoRollsCnt := 0;
 
 	for _, msg := range block {
-		if msg.HasRollResults() {
+		hasRoles, err := msg.HasRollResults()
+		if err != nil {
+			t.Errorf( "Failed to unpack inner JSON for rollresult message: %s\n%s", msg.Content, err.Error() )
+		}
+		if hasRoles {
 			hasRollsCnt++
 		} else {
 			hasNoRollsCnt++;
 		}
 	}
-	if hasRollsCnt != 21 || hasNoRollsCnt != 19 {
-		t.Errorf("Found %d inline messages with rolls and %d without, expected 21 with, 19 without", hasRollsCnt, hasNoRollsCnt)
+	if hasRollsCnt != 32 || hasNoRollsCnt != 8 {
+		t.Errorf("Found %d inline messages with rolls and %d without, expected 32 with, 8 without", hasRollsCnt, hasNoRollsCnt)
 	}
 
 }
